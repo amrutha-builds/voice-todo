@@ -205,9 +205,31 @@
     .todo-item.done .check-btn { background: var(--success-bg); border-color: var(--success-border); }
     .todo-item.done .check-btn i { color: var(--success-text); }
 
-    .todo-text { flex: 1; font-size: 14px; color: var(--text-primary); }
+    .todo-text { flex: 1; font-size: 14px; color: var(--text-primary); cursor: pointer; }
+    .todo-text:hover { text-decoration: underline; }
 
-    .delete-btn {
+    .edit-input {
+      flex: 1;
+      height: 32px;
+      padding: 0 10px;
+      font-size: 14px;
+      border-radius: var(--radius-md);
+      border: 0.5px solid var(--accent);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-family: var(--font);
+      outline: none;
+    }
+
+    .edit-input:focus { border-color: var(--accent); background: var(--bg); }
+
+    .action-buttons {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .edit-btn, .delete-btn, .save-btn, .cancel-btn {
       width: 28px;
       height: 28px;
       border-radius: var(--radius-md);
@@ -217,14 +239,48 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      opacity: 0;
       transition: opacity 0.15s, background 0.15s;
     }
 
+    .edit-btn, .delete-btn {
+      opacity: 0;
+    }
+
+    .todo-item:hover .edit-btn,
     .todo-item:hover .delete-btn { opacity: 1; }
+
+    .edit-btn:hover { background: var(--accent-light); }
+    .edit-btn i { font-size: 16px; color: var(--accent); }
+
     .delete-btn:hover { background: var(--danger-bg); }
     .delete-btn i { font-size: 16px; color: var(--text-secondary); }
     .delete-btn:hover i { color: var(--danger-text); }
+
+    .save-btn {
+      opacity: 1;
+      background: var(--success-bg);
+    }
+
+    .save-btn:hover { background: var(--success-border); }
+    .save-btn i { color: var(--success-text); }
+
+    .cancel-btn {
+      opacity: 1;
+      background: var(--danger-bg);
+    }
+
+    .cancel-btn:hover { background: var(--danger-bg); }
+    .cancel-btn i { color: var(--danger-text); }
+
+    .todo-item.editing {
+      background: var(--bg-secondary);
+    }
+
+    .todo-item.editing .check-btn,
+    .todo-item.editing .edit-btn,
+    .todo-item.editing .delete-btn {
+      display: none;
+    }
 
     .empty {
       text-align: center;
@@ -268,7 +324,7 @@
       <input type="text" id="task-input" placeholder="Say or type a task..." aria-label="Task input" />
       <button class="add-btn" id="addBtn">Add</button>
     </div>
-    <p class="hint" id="hint">Click the mic — say "add buy groceries", "complete call mom", or "delete meeting"</p>
+    <p class="hint" id="hint">Click the mic — say "add buy groceries", "edit call mom", "complete call mom", or "delete meeting"</p>
 
     <div class="filters">
       <button class="filter-btn active" data-filter="all">All</button>
@@ -302,6 +358,7 @@
     let filter = 'all';
     let listening = false;
     let nextId = Math.max(0, ...todos.map(t => t.id)) + 1;
+    let editingId = null;
 
     const input = document.getElementById('task-input');
     const micBtn = document.getElementById('micBtn');
@@ -322,16 +379,48 @@
       if (visible.length === 0) {
         listEl.innerHTML = `<p class="empty">${filter === 'done' ? 'No completed tasks yet' : 'Nothing here — add a task above'}</p>`;
       } else {
-        listEl.innerHTML = visible.map(t => `
-          <div class="todo-item${t.done ? ' done' : ''}" data-id="${t.id}">
-            <button class="check-btn" data-action="toggle" data-id="${t.id}" aria-label="${t.done ? 'Mark incomplete' : 'Mark complete'}">
-              <i class="ti ti-check" aria-hidden="true"></i>
-            </button>
-            <span class="todo-text">${escHtml(t.text)}</span>
-            <button class="delete-btn" data-action="delete" data-id="${t.id}" aria-label="Delete task">
-              <i class="ti ti-trash" aria-hidden="true"></i>
-            </button>
-          </div>`).join('');
+        listEl.innerHTML = visible.map(t => {
+          if (editingId === t.id) {
+            return `
+              <div class="todo-item editing" data-id="${t.id}">
+                <input type="text" class="edit-input" id="edit-input-${t.id}" value="${escHtml(t.text)}" />
+                <div class="action-buttons">
+                  <button class="save-btn" data-action="save" data-id="${t.id}" aria-label="Save">
+                    <i class="ti ti-check" aria-hidden="true"></i>
+                  </button>
+                  <button class="cancel-btn" data-action="cancel" data-id="${t.id}" aria-label="Cancel">
+                    <i class="ti ti-x" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>`;
+          }
+          return `
+            <div class="todo-item${t.done ? ' done' : ''}" data-id="${t.id}">
+              <button class="check-btn" data-action="toggle" data-id="${t.id}" aria-label="${t.done ? 'Mark incomplete' : 'Mark complete'}">
+                <i class="ti ti-check" aria-hidden="true"></i>
+              </button>
+              <span class="todo-text" data-action="edit" data-id="${t.id}">${escHtml(t.text)}</span>
+              <div class="action-buttons">
+                <button class="edit-btn" data-action="edit" data-id="${t.id}" aria-label="Edit task">
+                  <i class="ti ti-edit" aria-hidden="true"></i>
+                </button>
+                <button class="delete-btn" data-action="delete" data-id="${t.id}" aria-label="Delete task">
+                  <i class="ti ti-trash" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>`;
+        }).join('');
+
+        // Focus the edit input if in edit mode
+        if (editingId !== null) {
+          setTimeout(() => {
+            const editInput = document.getElementById(`edit-input-${editingId}`);
+            if (editInput) {
+              editInput.focus();
+              editInput.select();
+            }
+          }, 0);
+        }
       }
 
       const total = todos.length, done = todos.filter(t => t.done).length;
@@ -346,11 +435,59 @@
       render();
     }
 
+    function editTask(id) {
+      editingId = id;
+      render();
+    }
+
+    function saveEdit(id, newText) {
+      newText = newText.trim();
+      if (!newText) return false;
+      const todo = todos.find(t => t.id === id);
+      if (todo) {
+        todo.text = newText;
+        saveTodos();
+        editingId = null;
+        render();
+        return true;
+      }
+      return false;
+    }
+
+    function cancelEdit() {
+      editingId = null;
+      render();
+    }
+
     function processVoiceCommand(text) {
       const addMatch = text.match(/^(?:add|create|new|make)\s+(.+)/i);
+      const editMatch = text.match(/^(?:edit|change|update)\s+(.+)$/i);
+      const editToMatch = text.match(/^(?:edit|change|update)\s+(.+?)\s+to\s+(.+)$/i);
       const doneMatch = text.match(/^(?:complete|finish|done|mark done|check off)\s+(.+)/i);
       const deleteMatch = text.match(/^(?:delete|remove)\s+(.+)/i);
 
+      if (editToMatch) {
+        const kw = editToMatch[1].toLowerCase();
+        const newText = editToMatch[2];
+        const found = todos.find(t => t.text.toLowerCase().includes(kw));
+        if (found) {
+          found.text = newText;
+          saveTodos();
+          render();
+          return `Updated: "${found.text}"`;
+        }
+        return `No task matching "${editToMatch[1]}"`;
+      }
+      if (editMatch) {
+        const kw = editMatch[1].toLowerCase();
+        const found = todos.find(t => t.text.toLowerCase().includes(kw));
+        if (found) {
+          editingId = found.id;
+          render();
+          return `Editing: "${found.text}" — say the new text`;
+        }
+        return `No task matching "${editMatch[1]}"`;
+      }
       if (addMatch) {
         addTask(addMatch[1]);
         return `Added: "${addMatch[1]}"`;
@@ -367,6 +504,11 @@
         if (idx > -1) { const name = todos[idx].text; todos.splice(idx, 1); saveTodos(); render(); return `Deleted: "${name}"`; }
         return `No task matching "${deleteMatch[1]}"`;
       }
+      // If already editing, treat voice input as the new task text
+      if (editingId !== null) {
+        saveEdit(editingId, text);
+        return `Updated task`;
+      }
       addTask(text);
       return `Added: "${text}"`;
     }
@@ -375,21 +517,49 @@
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
       const id = +btn.dataset.id;
-      if (btn.dataset.action === 'toggle') {
+      const action = btn.dataset.action;
+
+      if (action === 'toggle') {
         const t = todos.find(t => t.id === id);
-        if (t) { t.done = !t.done; saveTodos(); render(); }
-      } else if (btn.dataset.action === 'delete') {
+        if (t && editingId === null) { t.done = !t.done; saveTodos(); render(); }
+      } else if (action === 'edit') {
+        if (editingId === null) {
+          editTask(id);
+        }
+      } else if (action === 'delete') {
         todos = todos.filter(t => t.id !== id);
         saveTodos();
         render();
+      } else if (action === 'save') {
+        const editInput = document.getElementById(`edit-input-${id}`);
+        if (editInput) {
+          saveEdit(id, editInput.value);
+        }
+      } else if (action === 'cancel') {
+        cancelEdit();
+      }
+    });
+
+    // Handle Enter and Escape in edit input
+    listEl.addEventListener('keydown', e => {
+      if (editingId === null) return;
+      const editInput = document.getElementById(`edit-input-${editingId}`);
+      if (!editInput) return;
+
+      if (e.key === 'Enter') {
+        saveEdit(editingId, editInput.value);
+      } else if (e.key === 'Escape') {
+        cancelEdit();
       }
     });
 
     document.querySelectorAll('.filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        filter = btn.dataset.filter;
-        document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
-        render();
+        if (editingId === null) {
+          filter = btn.dataset.filter;
+          document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+          render();
+        }
       });
     });
 
