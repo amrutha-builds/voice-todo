@@ -27,6 +27,14 @@
       --radius-md: 8px;
       --radius-lg: 12px;
       --font: -apple-system, 'Segoe UI', sans-serif;
+      --tag-family: #FFE5CC;
+      --tag-family-text: #8B4513;
+      --tag-home: #D4F1D4;
+      --tag-home-text: #2D5A2D;
+      --tag-work: #CCE5FF;
+      --tag-work-text: #003366;
+      --tag-personal: #F5E6FF;
+      --tag-personal-text: #663399;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -46,6 +54,14 @@
         --danger-text: #f09595;
         --accent: #F0997B;
         --accent-light: #4A1B0C;
+        --tag-family: #5A3A1A;
+        --tag-family-text: #FFD9B3;
+        --tag-home: #2A4A2A;
+        --tag-home-text: #A8E6A8;
+        --tag-work: #1A3A5A;
+        --tag-work-text: #80C0FF;
+        --tag-personal: #4A2A5A;
+        --tag-personal-text: #E6CCFF;
       }
     }
 
@@ -205,8 +221,35 @@
     .todo-item.done .check-btn { background: var(--success-bg); border-color: var(--success-border); }
     .todo-item.done .check-btn i { color: var(--success-text); }
 
-    .todo-text { flex: 1; font-size: 14px; color: var(--text-primary); cursor: pointer; }
+    .todo-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .todo-text { font-size: 14px; color: var(--text-primary); cursor: pointer; }
     .todo-text:hover { text-decoration: underline; }
+
+    .todo-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: 500;
+      display: inline-block;
+      max-width: fit-content;
+    }
+
+    .tag.family { background: var(--tag-family); color: var(--tag-family-text); }
+    .tag.home { background: var(--tag-home); color: var(--tag-home-text); }
+    .tag.work { background: var(--tag-work); color: var(--tag-work-text); }
+    .tag.personal { background: var(--tag-personal); color: var(--tag-personal-text); }
 
     .edit-input {
       flex: 1;
@@ -324,7 +367,7 @@
       <input type="text" id="task-input" placeholder="Say or type a task..." aria-label="Task input" />
       <button class="add-btn" id="addBtn">Add</button>
     </div>
-    <p class="hint" id="hint">Click the mic — say "add buy groceries", "edit call mom", "complete call mom", or "delete meeting"</p>
+    <p class="hint" id="hint">Say "add buy groceries ok jeeves" to complete a voice command. Tags auto-assign based on content.</p>
 
     <div class="filters">
       <button class="filter-btn active" data-filter="all">All</button>
@@ -339,13 +382,21 @@
   <script>
     const STORAGE_KEY = 'voice-todos';
 
+    // Tag keywords for auto-categorization
+    const TAG_KEYWORDS = {
+      family: ['mom', 'dad', 'brother', 'sister', 'family', 'relatives', 'grandma', 'grandpa', 'aunt', 'uncle', 'cousin', 'wedding', 'birthday'],
+      home: ['home', 'house', 'cleaning', 'laundry', 'dishes', 'cooking', 'garden', 'yard', 'repair', 'paint', 'fix'],
+      work: ['work', 'meeting', 'email', 'project', 'deadline', 'presentation', 'report', 'client', 'office', 'team', 'standup'],
+      personal: ['workout', 'gym', 'run', 'read', 'hobby', 'learn', 'practice', 'hobby', 'meditation', 'journal']
+    };
+
     function loadTodos() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         return raw ? JSON.parse(raw) : [
-          { id: 1, text: 'Review project proposal', done: false },
-          { id: 2, text: 'Send follow-up emails', done: false },
-          { id: 3, text: 'Schedule team standup', done: true },
+          { id: 1, text: 'Review project proposal', done: false, tags: ['work'] },
+          { id: 2, text: 'Send follow-up emails', done: false, tags: ['work'] },
+          { id: 3, text: 'Schedule team standup', done: true, tags: ['work'] },
         ];
       } catch { return []; }
     }
@@ -354,11 +405,25 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
     }
 
+    function autoTagTask(text) {
+      const tags = new Set();
+      const lowerText = text.toLowerCase();
+      
+      for (const [tag, keywords] of Object.entries(TAG_KEYWORDS)) {
+        if (keywords.some(kw => lowerText.includes(kw))) {
+          tags.add(tag);
+        }
+      }
+      
+      return Array.from(tags);
+    }
+
     let todos = loadTodos();
     let filter = 'all';
     let listening = false;
     let nextId = Math.max(0, ...todos.map(t => t.id)) + 1;
     let editingId = null;
+    let voiceBuffer = '';
 
     const input = document.getElementById('task-input');
     const micBtn = document.getElementById('micBtn');
@@ -394,12 +459,18 @@
                 </div>
               </div>`;
           }
+          const tagsHtml = t.tags && t.tags.length > 0 
+            ? `<div class="todo-tags">${t.tags.map(tag => `<span class="tag ${tag}">${tag}</span>`).join('')}</div>`
+            : '';
           return `
             <div class="todo-item${t.done ? ' done' : ''}" data-id="${t.id}">
               <button class="check-btn" data-action="toggle" data-id="${t.id}" aria-label="${t.done ? 'Mark incomplete' : 'Mark complete'}">
                 <i class="ti ti-check" aria-hidden="true"></i>
               </button>
-              <span class="todo-text" data-action="edit" data-id="${t.id}">${escHtml(t.text)}</span>
+              <div class="todo-content">
+                <span class="todo-text" data-action="edit" data-id="${t.id}">${escHtml(t.text)}</span>
+                ${tagsHtml}
+              </div>
               <div class="action-buttons">
                 <button class="edit-btn" data-action="edit" data-id="${t.id}" aria-label="Edit task">
                   <i class="ti ti-edit" aria-hidden="true"></i>
@@ -430,7 +501,8 @@
     function addTask(text) {
       text = text.trim();
       if (!text) return;
-      todos.unshift({ id: nextId++, text, done: false });
+      const tags = autoTagTask(text);
+      todos.unshift({ id: nextId++, text, done: false, tags });
       saveTodos();
       render();
     }
@@ -446,6 +518,7 @@
       const todo = todos.find(t => t.id === id);
       if (todo) {
         todo.text = newText;
+        todo.tags = autoTagTask(newText);
         saveTodos();
         editingId = null;
         render();
@@ -460,11 +533,14 @@
     }
 
     function processVoiceCommand(text) {
-      const addMatch = text.match(/^(?:add|create|new|make)\s+(.+)/i);
-      const editMatch = text.match(/^(?:edit|change|update)\s+(.+)$/i);
-      const editToMatch = text.match(/^(?:edit|change|update)\s+(.+?)\s+to\s+(.+)$/i);
-      const doneMatch = text.match(/^(?:complete|finish|done|mark done|check off)\s+(.+)/i);
-      const deleteMatch = text.match(/^(?:delete|remove)\s+(.+)/i);
+      // Remove "ok jeeves" from the end for command processing
+      const commandText = text.replace(/\s+ok\s+jeeves\s*$/i, '').trim();
+      
+      const addMatch = commandText.match(/^(?:add|create|new|make)\s+(.+)/i);
+      const editMatch = commandText.match(/^(?:edit|change|update)\s+(.+)$/i);
+      const editToMatch = commandText.match(/^(?:edit|change|update)\s+(.+?)\s+to\s+(.+)$/i);
+      const doneMatch = commandText.match(/^(?:complete|finish|done|mark done|check off)\s+(.+)/i);
+      const deleteMatch = commandText.match(/^(?:delete|remove)\s+(.+)/i);
 
       if (editToMatch) {
         const kw = editToMatch[1].toLowerCase();
@@ -472,6 +548,7 @@
         const found = todos.find(t => t.text.toLowerCase().includes(kw));
         if (found) {
           found.text = newText;
+          found.tags = autoTagTask(newText);
           saveTodos();
           render();
           return `Updated: "${found.text}"`;
@@ -484,7 +561,7 @@
         if (found) {
           editingId = found.id;
           render();
-          return `Editing: "${found.text}" — say the new text`;
+          return `Editing: "${found.text}" — say the new text followed by "ok jeeves"`;
         }
         return `No task matching "${editMatch[1]}"`;
       }
@@ -506,11 +583,11 @@
       }
       // If already editing, treat voice input as the new task text
       if (editingId !== null) {
-        saveEdit(editingId, text);
+        saveEdit(editingId, commandText);
         return `Updated task`;
       }
-      addTask(text);
-      return `Added: "${text}"`;
+      addTask(commandText);
+      return `Added: "${commandText}"`;
     }
 
     listEl.addEventListener('click', e => {
@@ -575,7 +652,7 @@
 
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false;
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
@@ -584,18 +661,23 @@
         micBtn.classList.add('active');
         micBtn.innerHTML = '<span class="pulse"></span>';
         input.classList.add('listening');
-        input.placeholder = 'Listening…';
-        hint.innerHTML = '<span class="pulse"></span>Listening…';
+        input.placeholder = 'Listening… say "ok jeeves" to complete';
+        hint.innerHTML = '<span class="pulse"></span>Listening… end with "ok jeeves"';
       };
 
       recognition.onresult = e => {
         const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
         input.value = transcript;
+        
+        // Check if "ok jeeves" is in the final result
         if (e.results[e.results.length - 1].isFinal) {
-          const result = processVoiceCommand(transcript);
-          input.value = '';
-          hint.textContent = result;
-          setTimeout(() => { hint.textContent = 'Click the mic to give another voice command'; }, 3000);
+          if (transcript.toLowerCase().includes('ok jeeves')) {
+            const result = processVoiceCommand(transcript);
+            input.value = '';
+            hint.textContent = result;
+            setTimeout(() => { hint.textContent = 'Click the mic to give another voice command'; }, 3000);
+            recognition.stop();
+          }
         }
       };
 
