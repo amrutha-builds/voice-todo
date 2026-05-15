@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice To-Do List</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --bg-secondary: #f5f5f3;
+      --bg-tertiary: #efefed;
+      --text-primary: #1a1a1a;
+      --text-secondary: #666664;
+      --text-tertiary: #999997;
+      --border: rgba(0,0,0,0.12);
+      --border-hover: rgba(0,0,0,0.25);
+      --success-bg: #eaf3de;
+      --success-border: rgba(63,110,17,0.35);
+      --success-text: #3b6d11;
+      --danger-bg: #fcebeb;
+      --danger-text: #a32d2d;
+      --accent: #D85A30;
+      --accent-light: #FAECE7;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --font: -apple-system, 'Segoe UI', sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1a;
+        --bg-secondary: #252523;
+        --bg-tertiary: #2e2e2c;
+        --text-primary: #f0efe8;
+        --text-secondary: #999997;
+        --text-tertiary: #666664;
+        --border: rgba(255,255,255,0.1);
+        --border-hover: rgba(255,255,255,0.22);
+        --success-bg: #173404;
+        --success-border: rgba(151,196,89,0.3);
+        --success-text: #c0dd97;
+        --danger-bg: #501313;
+        --danger-text: #f09595;
+        --accent: #F0997B;
+        --accent-light: #4A1B0C;
+      }
+    }
+
+    body {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .card {
+      background: var(--bg);
+      border-radius: var(--radius-lg);
+      border: 0.5px solid var(--border);
+      padding: 2rem;
+      width: 100%;
+      max-width: 560px;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h1 i { font-size: 20px; color: var(--text-secondary); }
+
+    .voice-bar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .mic-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 0.5px solid var(--border-hover);
+      background: var(--bg);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .mic-btn:hover { background: var(--bg-secondary); }
+    .mic-btn.active { background: var(--accent-light); border-color: var(--accent); }
+    .mic-btn.active i { color: var(--accent); }
+    .mic-btn i { font-size: 20px; color: var(--text-secondary); }
+    .mic-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #task-input {
+      flex: 1;
+      height: 44px;
+      padding: 0 14px;
+      font-size: 14px;
+      border-radius: var(--radius-md);
+      border: 0.5px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    #task-input:focus { border-color: var(--border-hover); background: var(--bg); }
+    #task-input.listening { border-color: var(--accent); background: var(--bg); }
+    #task-input::placeholder { color: var(--text-tertiary); }
+
+    .add-btn {
+      height: 44px;
+      padding: 0 18px;
+      border-radius: var(--radius-md);
+      border: 0.5px solid var(--border-hover);
+      background: var(--bg);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: var(--font);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+
+    .add-btn:hover { background: var(--bg-secondary); }
+
+    .hint {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-bottom: 1.25rem;
+      min-height: 18px;
+    }
+
+    .filters {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 1rem;
+    }
+
+    .filter-btn {
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 0.5px solid var(--border);
+      font-size: 13px;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font);
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .filter-btn:hover { background: var(--bg-secondary); }
+    .filter-btn.active { border-color: var(--border-hover); color: var(--text-primary); background: var(--bg-secondary); }
+
+    .todo-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .todo-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--bg);
+      transition: opacity 0.2s;
+    }
+
+    .todo-item.done { opacity: 0.5; }
+    .todo-item.done .todo-text { text-decoration: line-through; color: var(--text-tertiary); }
+
+    .check-btn {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 0.5px solid var(--border-hover);
+      background: transparent;
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .check-btn:hover { background: var(--success-bg); border-color: var(--success-border); }
+    .check-btn i { font-size: 13px; color: transparent; }
+    .todo-item.done .check-btn { background: var(--success-bg); border-color: var(--success-border); }
+    .todo-item.done .check-btn i { color: var(--success-text); }
+
+    .todo-text { flex: 1; font-size: 14px; color: var(--text-primary); }
+
+    .delete-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-md);
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.15s, background 0.15s;
+    }
+
+    .todo-item:hover .delete-btn { opacity: 1; }
+    .delete-btn:hover { background: var(--danger-bg); }
+    .delete-btn i { font-size: 16px; color: var(--text-secondary); }
+    .delete-btn:hover i { color: var(--danger-text); }
+
+    .empty {
+      text-align: center;
+      padding: 2rem 0;
+      color: var(--text-tertiary);
+      font-size: 14px;
+    }
+
+    .stats {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-top: 1rem;
+      text-align: right;
+    }
+
+    .pulse {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      margin-right: 6px;
+      vertical-align: middle;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1><i class="ti ti-checkbox" aria-hidden="true"></i> Voice To-Do</h1>
+
+    <div class="voice-bar">
+      <button class="mic-btn" id="micBtn" aria-label="Start voice input" title="Click to speak">
+        <i class="ti ti-microphone" aria-hidden="true"></i>
+      </button>
+      <input type="text" id="task-input" placeholder="Say or type a task..." aria-label="Task input" />
+      <button class="add-btn" id="addBtn">Add</button>
+    </div>
+    <p class="hint" id="hint">Click the mic — say "add buy groceries", "complete call mom", or "delete meeting"</p>
+
+    <div class="filters">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="active">Active</button>
+      <button class="filter-btn" data-filter="done">Done</button>
+    </div>
+
+    <div class="todo-list" id="todoList"></div>
+    <p class="stats" id="stats"></p>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'voice-todos';
+
+    function loadTodos() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [
+          { id: 1, text: 'Review project proposal', done: false },
+          { id: 2, text: 'Send follow-up emails', done: false },
+          { id: 3, text: 'Schedule team standup', done: true },
+        ];
+      } catch { return []; }
+    }
+
+    function saveTodos() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+    }
+
+    let todos = loadTodos();
+    let filter = 'all';
+    let listening = false;
+    let nextId = Math.max(0, ...todos.map(t => t.id)) + 1;
+
+    const input = document.getElementById('task-input');
+    const micBtn = document.getElementById('micBtn');
+    const addBtn = document.getElementById('addBtn');
+    const hint = document.getElementById('hint');
+    const listEl = document.getElementById('todoList');
+    const statsEl = document.getElementById('stats');
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function render() {
+      const visible = todos.filter(t =>
+        filter === 'all' || (filter === 'active' ? !t.done : t.done)
+      );
+
+      if (visible.length === 0) {
+        listEl.innerHTML = `<p class="empty">${filter === 'done' ? 'No completed tasks yet' : 'Nothing here — add a task above'}</p>`;
+      } else {
+        listEl.innerHTML = visible.map(t => `
+          <div class="todo-item${t.done ? ' done' : ''}" data-id="${t.id}">
+            <button class="check-btn" data-action="toggle" data-id="${t.id}" aria-label="${t.done ? 'Mark incomplete' : 'Mark complete'}">
+              <i class="ti ti-check" aria-hidden="true"></i>
+            </button>
+            <span class="todo-text">${escHtml(t.text)}</span>
+            <button class="delete-btn" data-action="delete" data-id="${t.id}" aria-label="Delete task">
+              <i class="ti ti-trash" aria-hidden="true"></i>
+            </button>
+          </div>`).join('');
+      }
+
+      const total = todos.length, done = todos.filter(t => t.done).length;
+      statsEl.textContent = total ? `${done} of ${total} completed` : '';
+    }
+
+    function addTask(text) {
+      text = text.trim();
+      if (!text) return;
+      todos.unshift({ id: nextId++, text, done: false });
+      saveTodos();
+      render();
+    }
+
+    function processVoiceCommand(text) {
+      const addMatch = text.match(/^(?:add|create|new|make)\s+(.+)/i);
+      const doneMatch = text.match(/^(?:complete|finish|done|mark done|check off)\s+(.+)/i);
+      const deleteMatch = text.match(/^(?:delete|remove)\s+(.+)/i);
+
+      if (addMatch) {
+        addTask(addMatch[1]);
+        return `Added: "${addMatch[1]}"`;
+      }
+      if (doneMatch) {
+        const kw = doneMatch[1].toLowerCase();
+        const found = todos.find(t => t.text.toLowerCase().includes(kw) && !t.done);
+        if (found) { found.done = true; saveTodos(); render(); return `Completed: "${found.text}"`; }
+        return `No active task matching "${doneMatch[1]}"`;
+      }
+      if (deleteMatch) {
+        const kw = deleteMatch[1].toLowerCase();
+        const idx = todos.findIndex(t => t.text.toLowerCase().includes(kw));
+        if (idx > -1) { const name = todos[idx].text; todos.splice(idx, 1); saveTodos(); render(); return `Deleted: "${name}"`; }
+        return `No task matching "${deleteMatch[1]}"`;
+      }
+      addTask(text);
+      return `Added: "${text}"`;
+    }
+
+    listEl.addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const id = +btn.dataset.id;
+      if (btn.dataset.action === 'toggle') {
+        const t = todos.find(t => t.id === id);
+        if (t) { t.done = !t.done; saveTodos(); render(); }
+      } else if (btn.dataset.action === 'delete') {
+        todos = todos.filter(t => t.id !== id);
+        saveTodos();
+        render();
+      }
+    });
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        filter = btn.dataset.filter;
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+        render();
+      });
+    });
+
+    addBtn.addEventListener('click', () => {
+      if (input.value.trim()) { addTask(input.value); input.value = ''; }
+    });
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && input.value.trim()) { addTask(input.value); input.value = ''; }
+    });
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        listening = true;
+        micBtn.classList.add('active');
+        micBtn.innerHTML = '<span class="pulse"></span>';
+        input.classList.add('listening');
+        input.placeholder = 'Listening…';
+        hint.innerHTML = '<span class="pulse"></span>Listening…';
+      };
+
+      recognition.onresult = e => {
+        const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
+        input.value = transcript;
+        if (e.results[e.results.length - 1].isFinal) {
+          const result = processVoiceCommand(transcript);
+          input.value = '';
+          hint.textContent = result;
+          setTimeout(() => { hint.textContent = 'Click the mic to give another voice command'; }, 3000);
+        }
+      };
+
+      recognition.onerror = e => {
+        hint.textContent = e.error === 'not-allowed'
+          ? 'Microphone access denied — allow it in your browser settings'
+          : 'Voice error: ' + e.error;
+        stopListening();
+      };
+
+      recognition.onend = () => stopListening();
+
+      micBtn.addEventListener('click', () => {
+        if (listening) { recognition.stop(); } else { recognition.start(); }
+      });
+
+      function stopListening() {
+        listening = false;
+        micBtn.classList.remove('active');
+        micBtn.innerHTML = '<i class="ti ti-microphone" aria-hidden="true"></i>';
+        input.classList.remove('listening');
+        input.placeholder = 'Say or type a task…';
+      }
+    } else {
+      micBtn.disabled = true;
+      micBtn.title = 'Voice input not supported in this browser';
+      hint.textContent = 'Voice input requires Chrome or Edge — type to add tasks instead';
+    }
+
+    render();
+  </script>
+</body>
+</html>
