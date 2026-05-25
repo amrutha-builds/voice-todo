@@ -666,6 +666,19 @@
       recognition.onresult = e => {
         const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
         input.value = transcript;
+        
+        // Check if result is final
+        if (e.results[e.results.length - 1].isFinal && transcript.trim()) {
+          setTimeout(() => {
+            if (listening) {
+              const result = processVoiceCommand(input.value);
+              input.value = '';
+              hint.textContent = result;
+              setTimeout(() => { hint.textContent = 'Click the mic to give another voice command'; }, 3000);
+              listening = false;
+            }
+          }, 100);
+        }
       };
 
       recognition.onerror = e => {
@@ -676,12 +689,6 @@
       };
 
       recognition.onend = () => {
-        if (listening && input.value.trim()) {
-          const result = processVoiceCommand(input.value);
-          input.value = '';
-          hint.textContent = result;
-          setTimeout(() => { hint.textContent = 'Click the mic to give another voice command'; }, 3000);
-        }
         stopListening();
       };
 
