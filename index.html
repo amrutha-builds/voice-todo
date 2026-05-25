@@ -367,7 +367,7 @@
       <input type="text" id="task-input" placeholder="Say or type a task..." aria-label="Task input" />
       <button class="add-btn" id="addBtn">Add</button>
     </div>
-    <p class="hint" id="hint">Say "add buy groceries ok jeeves" to complete a voice command. Tags auto-assign based on content.</p>
+    <p class="hint" id="hint">Say "add buy groceries" to complete a voice command. Stop speaking to submit. Tags auto-assign based on content.</p>
 
     <div class="filters">
       <button class="filter-btn active" data-filter="all">All</button>
@@ -423,7 +423,6 @@
     let listening = false;
     let nextId = Math.max(0, ...todos.map(t => t.id)) + 1;
     let editingId = null;
-    let voiceBuffer = '';
 
     const input = document.getElementById('task-input');
     const micBtn = document.getElementById('micBtn');
@@ -533,77 +532,60 @@
     }
 
     function processVoiceCommand(text) {
-      // Split on "ok jeeves" to handle multiple commands
-      const commands = text.split(/\s+ok\s+jeeves\s*/i);
-      const results = [];
+      const commandText = text.trim();
+      
+      const addMatch = commandText.match(/^(?:add|create|new|make)\s+(.+)/i);
+      const editMatch = commandText.match(/^(?:edit|change|update)\s+(.+)$/i);
+      const editToMatch = commandText.match(/^(?:edit|change|update)\s+(.+?)\s+to\s+(.+)$/i);
+      const doneMatch = commandText.match(/^(?:complete|finish|done|mark done|check off)\s+(.+)/i);
+      const deleteMatch = commandText.match(/^(?:delete|remove)\s+(.+)/i);
 
-      for (let i = 0; i < commands.length; i++) {
-        const commandText = commands[i].trim();
-        if (!commandText) continue;
-
-        const addMatch = commandText.match(/^(?:add|create|new|make)\s+(.+)/i);
-        const editMatch = commandText.match(/^(?:edit|change|update)\s+(.+)$/i);
-        const editToMatch = commandText.match(/^(?:edit|change|update)\s+(.+?)\s+to\s+(.+)$/i);
-        const doneMatch = commandText.match(/^(?:complete|finish|done|mark done|check off)\s+(.+)/i);
-        const deleteMatch = commandText.match(/^(?:delete|remove)\s+(.+)/i);
-
-        if (editToMatch) {
-          const kw = editToMatch[1].toLowerCase();
-          const newText = editToMatch[2];
-          const found = todos.find(t => t.text.toLowerCase().includes(kw));
-          if (found) {
-            found.text = newText;
-            found.tags = autoTagTask(newText);
-            results.push(`Updated: "${found.text}"`);
-          } else {
-            results.push(`No task matching "${editToMatch[1]}"`);
-          }
-        } else if (editMatch) {
-          const kw = editMatch[1].toLowerCase();
-          const found = todos.find(t => t.text.toLowerCase().includes(kw));
-          if (found) {
-            editingId = found.id;
-            results.push(`Editing: "${found.text}" — say the new text followed by "ok jeeves"`);
-          } else {
-            results.push(`No task matching "${editMatch[1]}"`);
-          }
-        } else if (addMatch) {
-          addTask(addMatch[1]);
-          results.push(`Added: "${addMatch[1]}"`);
-        } else if (doneMatch) {
-          const kw = doneMatch[1].toLowerCase();
-          const found = todos.find(t => t.text.toLowerCase().includes(kw) && !t.done);
-          if (found) {
-            found.done = true;
-            results.push(`Completed: "${found.text}"`);
-          } else {
-            results.push(`No active task matching "${doneMatch[1]}"`);
-          }
-        } else if (deleteMatch) {
-          const kw = deleteMatch[1].toLowerCase();
-          const idx = todos.findIndex(t => t.text.toLowerCase().includes(kw));
-          if (idx > -1) {
-            const name = todos[idx].text;
-            todos.splice(idx, 1);
-            results.push(`Deleted: "${name}"`);
-          } else {
-            results.push(`No task matching "${deleteMatch[1]}"`);
-          }
-        } else {
-          // If already editing, treat voice input as the new task text
-          if (editingId !== null) {
-            saveEdit(editingId, commandText);
-            results.push(`Updated task`);
-          } else {
-            addTask(commandText);
-            results.push(`Added: "${commandText}"`);
-          }
+      if (editToMatch) {
+        const kw = editToMatch[1].toLowerCase();
+        const newText = editToMatch[2];
+        const found = todos.find(t => t.text.toLowerCase().includes(kw));
+        if (found) {
+          found.text = newText;
+          found.tags = autoTagTask(newText);
+          saveTodos();
+          render();
+          return `Updated: "${found.text}"`;
         }
+        return `No task matching "${editToMatch[1]}"`;
       }
-
-      saveTodos();
-      render();
-      return results.join(' • ');
+      if (editMatch) {
+        const kw = editMatch[1].toLowerCase();
+        const found = todos.find(t => t.text.toLowerCase().includes(kw));
+        if (found) {
+          editingId = found.id;
+          render();
+          return `Editing: "${found.text}" — say the new text`;
+        }
+        return `No task matching "${editMatch[1]}"`;
+      }
+      if (addMatch) {
+        addTask(addMatch[1]);
+        return `Added: "${addMatch[1]}"`;
+      }
+      if (doneMatch) {
+        const kw = doneMatch[1].toLowerCase();
+        const found = todos.find(t => t.text.toLowerCase().includes(kw) && !t.done);
+        if (found) { found.done = true; saveTodos(); render(); return `Completed: "${found.text}"`; }
+        return `No active task matching "${doneMatch[1]}"`;
+      }
+      if (deleteMatch) {
+        const kw = deleteMatch[1].toLowerCase();
+        const idx = todos.findIndex(t => t.text.toLowerCase().includes(kw));
+        if (idx > -1) { const name = todos[idx].text; todos.splice(idx, 1); saveTodos(); render(); return `Deleted: "${name}"`; }
+        return `No task matching "${deleteMatch[1]}"`;
+      }
+      // If already editing, treat voice input as the new task text
+      if (editingId !== null) {
+        saveEdit(editingId, commandText);
+        return `Updated task`;
+      }
+      addTask(commandText);
+      return `Added: "${commandText}"`;
     }
 
     listEl.addEventListener('click', e => {
@@ -668,7 +650,7 @@
 
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.continuous = true;
+      recognition.continuous = false;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
@@ -677,24 +659,13 @@
         micBtn.classList.add('active');
         micBtn.innerHTML = '<span class="pulse"></span>';
         input.classList.add('listening');
-        input.placeholder = 'Listening… say "ok jeeves" to complete';
-        hint.innerHTML = '<span class="pulse"></span>Listening… end with "ok jeeves"';
+        input.placeholder = 'Listening…';
+        hint.innerHTML = '<span class="pulse"></span>Listening… stop speaking to submit';
       };
 
       recognition.onresult = e => {
         const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
         input.value = transcript;
-        
-        // Check if "ok jeeves" is in the final result
-        if (e.results[e.results.length - 1].isFinal) {
-          if (transcript.toLowerCase().includes('ok jeeves')) {
-            const result = processVoiceCommand(transcript);
-            input.value = '';
-            hint.textContent = result;
-            setTimeout(() => { hint.textContent = 'Click the mic to give another voice command'; }, 3000);
-            recognition.stop();
-          }
-        }
       };
 
       recognition.onerror = e => {
@@ -704,7 +675,15 @@
         stopListening();
       };
 
-      recognition.onend = () => stopListening();
+      recognition.onend = () => {
+        if (listening && input.value.trim()) {
+          const result = processVoiceCommand(input.value);
+          input.value = '';
+          hint.textContent = result;
+          setTimeout(() => { hint.textContent = 'Click the mic to give another voice command'; }, 3000);
+        }
+        stopListening();
+      };
 
       micBtn.addEventListener('click', () => {
         if (listening) { recognition.stop(); } else { recognition.start(); }
